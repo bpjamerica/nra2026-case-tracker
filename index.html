@@ -79,6 +79,17 @@
 
         .empty { text-align: center; padding: 40px 20px; color: #888; font-size: 0.95em; }
 
+        .audit-header { display: flex; justify-content: space-between; padding: 10px 16px; background: #2c5282; color: #fff; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px; }
+        .audit-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 16px; border-bottom: 1px solid #f0f0f0; font-size: 0.85em; }
+        .audit-row:hover { background: #f0f4ff; }
+        .audit-row.moved { background: #fffbeb; }
+        .audit-row.removed { background: #fff5f5; text-decoration: line-through; color: #999; }
+        .status-in-place { color: #38a169; font-weight: 600; font-size: 0.8em; }
+        .status-moved { color: #d69e2e; font-weight: 600; font-size: 0.8em; }
+        .status-removed { color: #e53e3e; font-weight: 600; font-size: 0.8em; }
+        .audit-summary { display: flex; gap: 16px; padding: 10px 16px; background: #edf2f7; font-size: 0.85em; font-weight: 600; border-bottom: 2px solid #cbd5e0; }
+        .audit-summary span { white-space: nowrap; }
+
         @media (max-width: 500px) {
             body { padding: 8px; }
             .input-row { flex-direction: column; gap: 8px; }
@@ -115,6 +126,7 @@
         <div class="tab active" data-tab="cases">By Case <span class="badge" id="assignCount">0</span></div>
         <div class="tab" data-tab="products">All Products <span class="badge" id="productCount">0</span></div>
         <div class="tab" data-tab="summary">Summary</div>
+        <div class="tab" data-tab="audit">Audit</div>
     </div>
 
     <div class="panel" id="casesPanel"></div>
@@ -125,6 +137,7 @@
         <div class="product-list" id="productList"></div>
     </div>
     <div class="panel" id="summaryPanel" style="display:none"></div>
+    <div class="panel" id="auditPanel" style="display:none"></div>
 
     <div class="bottom-bar">
         <button class="btn primary" onclick="exportCSV()">Export CSV</button>
@@ -148,7 +161,7 @@ const PRODUCTS = [{"p":7872494108750,"d":"1/2 oz NRA Second Amendment Silver Rou
 // ============================================================
 // STATE
 // ============================================================
-let assignments = {};  // barcode -> {case_number, product_id, description, coin_id, barcode, price, assigned_at}
+let assignments = {};  // barcode -> {case_number, origin_case, product_id, description, coin_id, barcode, price, assigned_at}
 let cases = [];
 let barcodeIndex = {};
 let realtimeChannel = null;
@@ -194,6 +207,7 @@ async function loadFromSupabase() {
         for (const row of (data || [])) {
             assignments[row.barcode] = {
                 case_number: row.case_number,
+                origin_case: row.origin_case || row.case_number,
                 product_id: row.product_id,
                 description: row.description,
                 coin_id: row.coin_id,
@@ -202,6 +216,7 @@ async function loadFromSupabase() {
                 assigned_at: row.assigned_at
             };
             addCaseSilent(row.case_number);
+            addCaseSilent(row.origin_case || row.case_number);
         }
         render();
         setSync('ok');
@@ -223,6 +238,7 @@ async function upsertAssignment(a) {
         const { error } = await sb.from('case_assignments').upsert({
             barcode: a.barcode,
             case_number: a.case_number,
+            origin_case: a.origin_case,
             product_id: a.product_id,
             description: a.description,
             coin_id: a.coin_id,
@@ -276,8 +292,8 @@ function subscribeRealtime() {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'case_assignments' }, payload => {
             const row = payload.new;
             assignments[row.barcode] = {
-                case_number: row.case_number, product_id: row.product_id,
-                description: row.description, coin_id: row.coin_id,
+                case_number: row.case_number, origin_case: row.origin_case || row.case_number,
+                product_id: row.product_id, description: row.description, coin_id: row.coin_id,
                 barcode: row.barcode, price: row.price, assigned_at: row.assigned_at
             };
             addCaseSilent(row.case_number);
@@ -286,8 +302,8 @@ function subscribeRealtime() {
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'case_assignments' }, payload => {
             const row = payload.new;
             assignments[row.barcode] = {
-                case_number: row.case_number, product_id: row.product_id,
-                description: row.description, coin_id: row.coin_id,
+                case_number: row.case_number, origin_case: row.origin_case || row.case_number,
+                product_id: row.product_id, description: row.description, coin_id: row.coin_id,
                 barcode: row.barcode, price: row.price, assigned_at: row.assigned_at
             };
             addCaseSilent(row.case_number);
@@ -343,12 +359,13 @@ function handleScan() {
 
     const a = {
         case_number: caseNum,
+        origin_case: existing ? existing.origin_case : caseNum,
         product_id: p.p,
         description: p.d,
         coin_id: p.c,
         barcode: barcode,
         price: p['$'],
-        assigned_at: new Date().toISOString()
+        assigned_at: existing ? existing.assigned_at : new Date().toISOString()
     };
 
     assignments[barcode] = a;
@@ -480,6 +497,59 @@ function renderSummary() {
     panel.innerHTML = html;
 }
 
+function renderAudit() {
+    const panel = document.getElementById('auditPanel');
+    const all = Object.values(assignments);
+    if (!all.length) { panel.innerHTML = '<div class="empty">No assignments yet</div>'; return; }
+
+    // Group by origin_case
+    const byOrigin = {};
+    for (const a of all) {
+        const oc = a.origin_case || a.case_number;
+        if (!byOrigin[oc]) byOrigin[oc] = [];
+        byOrigin[oc].push(a);
+    }
+
+    const originCases = Object.keys(byOrigin).sort();
+    let html = '';
+
+    for (const oc of originCases) {
+        const items = byOrigin[oc].sort((a, b) => a.description.localeCompare(b.description));
+        const inPlace = items.filter(a => a.case_number === oc).length;
+        const moved = items.filter(a => a.case_number !== oc).length;
+        const total = items.reduce((s, i) => s + parseFloat(i.price || 0), 0);
+
+        html += '<div class="case-group">';
+        html += '<div class="case-header" onclick="toggleCase(this)">';
+        html += '<span>' + esc(oc) + ' <span class="cnt">(' + items.length + ' coins &mdash; ' + inPlace + ' in place';
+        if (moved) html += ', ' + moved + ' moved';
+        html += ')</span></span>';
+        html += '<span class="arrow">&#9660;</span></div>';
+
+        html += '<div class="case-items">';
+        html += '<div class="audit-header"><span>Coin</span><span>Status</span></div>';
+
+        for (const a of items) {
+            const isInPlace = a.case_number === oc;
+            const cls = isInPlace ? '' : ' moved';
+            const statusCls = isInPlace ? 'status-in-place' : 'status-moved';
+            const statusTxt = isInPlace ? 'In Place' : '\u2192 ' + a.case_number;
+
+            html += '<div class="audit-row' + cls + '">';
+            html += '<div class="coin-info">';
+            html += '<div class="coin-desc">' + esc(a.description) + '</div>';
+            html += '<div class="coin-meta">' + esc(a.coin_id) + ' | ' + esc(a.barcode) + ' | $' + fmt(parseFloat(a.price || 0)) + '</div>';
+            html += '</div>';
+            html += '<span class="' + statusCls + '">' + statusTxt + '</span>';
+            html += '</div>';
+        }
+
+        html += '</div></div>';
+    }
+
+    panel.innerHTML = html;
+}
+
 function toggleCase(h) { h.querySelector('.arrow').classList.toggle('collapsed'); h.nextElementSibling.classList.toggle('hidden'); }
 
 function showTab(tab) {
@@ -487,8 +557,10 @@ function showTab(tab) {
     document.getElementById('casesPanel').style.display = tab === 'cases' ? '' : 'none';
     document.getElementById('productsPanel').style.display = tab === 'products' ? '' : 'none';
     document.getElementById('summaryPanel').style.display = tab === 'summary' ? '' : 'none';
+    document.getElementById('auditPanel').style.display = tab === 'audit' ? '' : 'none';
     if (tab === 'products') renderProducts();
     if (tab === 'summary') renderSummary();
+    if (tab === 'audit') renderAudit();
 }
 
 function setSync(s) {
@@ -510,10 +582,13 @@ function feedback(msg, type) {
 // ACTIONS
 // ============================================================
 function exportCSV() {
-    const rows = [['case_number','coin_id','description','barcode','price','assigned_at']];
+    const rows = [['case_number','origin_case','coin_id','description','barcode','price','status','assigned_at']];
     const sorted = Object.values(assignments).sort((a, b) =>
-        a.case_number.localeCompare(b.case_number) || a.description.localeCompare(b.description));
-    for (const a of sorted) rows.push([a.case_number, a.coin_id, a.description, a.barcode, a.price, a.assigned_at]);
+        (a.origin_case||'').localeCompare(b.origin_case||'') || a.description.localeCompare(b.description));
+    for (const a of sorted) {
+        const status = a.case_number === (a.origin_case || a.case_number) ? 'In Place' : 'Moved';
+        rows.push([a.case_number, a.origin_case || a.case_number, a.coin_id, a.description, a.barcode, a.price, status, a.assigned_at]);
+    }
     const csv = rows.map(r => r.map(v => '"' + (v||'').replace(/"/g,'""') + '"').join(',')).join('\n');
     dl(csv, 'case-assignments-' + today() + '.csv', 'text/csv');
 }
