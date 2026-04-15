@@ -86,7 +86,10 @@
         .audit-row.removed { background: #fff5f5; text-decoration: line-through; color: #999; }
         .status-in-place { color: #38a169; font-weight: 600; font-size: 0.8em; }
         .status-moved { color: #d69e2e; font-weight: 600; font-size: 0.8em; }
+        .status-sold { color: #e53e3e; font-weight: 600; font-size: 0.8em; }
         .status-removed { color: #e53e3e; font-weight: 600; font-size: 0.8em; }
+        .audit-row.sold { background: #fff5f5; }
+        .sold-badge { display: inline-block; padding: 1px 6px; background: #e53e3e; color: #fff; border-radius: 10px; font-size: 0.75em; font-weight: 600; margin-left: 6px; }
         .audit-summary { display: flex; gap: 16px; padding: 10px 16px; background: #edf2f7; font-size: 0.85em; font-weight: 600; border-bottom: 2px solid #cbd5e0; }
         .audit-summary span { white-space: nowrap; }
 
@@ -208,12 +211,10 @@ async function loadFromSupabase() {
             assignments[row.barcode] = {
                 case_number: row.case_number,
                 origin_case: row.origin_case || row.case_number,
-                product_id: row.product_id,
-                description: row.description,
-                coin_id: row.coin_id,
-                barcode: row.barcode,
-                price: row.price,
-                assigned_at: row.assigned_at
+                product_id: row.product_id, description: row.description,
+                coin_id: row.coin_id, barcode: row.barcode,
+                price: row.price, assigned_at: row.assigned_at,
+                sold: row.sold || false, sold_at: row.sold_at
             };
             addCaseSilent(row.case_number);
             addCaseSilent(row.origin_case || row.case_number);
@@ -294,7 +295,8 @@ function subscribeRealtime() {
             assignments[row.barcode] = {
                 case_number: row.case_number, origin_case: row.origin_case || row.case_number,
                 product_id: row.product_id, description: row.description, coin_id: row.coin_id,
-                barcode: row.barcode, price: row.price, assigned_at: row.assigned_at
+                barcode: row.barcode, price: row.price, assigned_at: row.assigned_at,
+                sold: row.sold || false, sold_at: row.sold_at
             };
             addCaseSilent(row.case_number);
             render();
@@ -304,7 +306,8 @@ function subscribeRealtime() {
             assignments[row.barcode] = {
                 case_number: row.case_number, origin_case: row.origin_case || row.case_number,
                 product_id: row.product_id, description: row.description, coin_id: row.coin_id,
-                barcode: row.barcode, price: row.price, assigned_at: row.assigned_at
+                barcode: row.barcode, price: row.price, assigned_at: row.assigned_at,
+                sold: row.sold || false, sold_at: row.sold_at
             };
             addCaseSilent(row.case_number);
             render();
@@ -447,7 +450,7 @@ function renderCases() {
         html += '<span class="arrow">&#9660;</span></div><div class="case-items">';
         for (const item of items) {
             html += '<div class="coin-row"><div class="coin-info">';
-            html += '<div class="coin-desc">' + esc(item.description) + '</div>';
+            html += '<div class="coin-desc">' + esc(item.description) + (item.sold ? '<span class="sold-badge">SOLD</span>' : '') + '</div>';
             html += '<div class="coin-meta">' + esc(item.coin_id) + ' | ' + esc(item.barcode) + ' | $' + fmt(parseFloat(item.price || 0)) + '</div>';
             html += '</div><button class="coin-remove" onclick="removeCoin(\'' + escA(item.barcode) + '\')">Remove</button></div>';
         }
@@ -511,18 +514,36 @@ function renderAudit() {
     }
 
     const originCases = Object.keys(byOrigin).sort();
-    let html = '';
+
+    // Overall totals
+    const totalCoins = all.length;
+    const totalSold = all.filter(a => a.sold).length;
+    const totalMoved = all.filter(a => a.case_number !== (a.origin_case || a.case_number)).length;
+    const totalInPlace = totalCoins - totalMoved;
+    const totalSoldValue = all.filter(a => a.sold).reduce((s, a) => s + parseFloat(a.price || 0), 0);
+
+    let html = '<div class="audit-summary">';
+    html += '<span>Total: ' + totalCoins + '</span>';
+    html += '<span>In Place: ' + totalInPlace + '</span>';
+    if (totalMoved) html += '<span>Moved: ' + totalMoved + '</span>';
+    html += '<span style="color:#e53e3e">Sold: ' + totalSold + ' ($' + fmt(totalSoldValue) + ')</span>';
+    html += '</div>';
 
     for (const oc of originCases) {
-        const items = byOrigin[oc].sort((a, b) => a.description.localeCompare(b.description));
-        const inPlace = items.filter(a => a.case_number === oc).length;
-        const moved = items.filter(a => a.case_number !== oc).length;
+        const items = byOrigin[oc].sort((a, b) => {
+            if (a.sold !== b.sold) return a.sold ? 1 : -1;
+            return a.description.localeCompare(b.description);
+        });
+        const inPlace = items.filter(a => a.case_number === oc && !a.sold).length;
+        const moved = items.filter(a => a.case_number !== oc && !a.sold).length;
+        const sold = items.filter(a => a.sold).length;
         const total = items.reduce((s, i) => s + parseFloat(i.price || 0), 0);
 
         html += '<div class="case-group">';
         html += '<div class="case-header" onclick="toggleCase(this)">';
-        html += '<span>' + esc(oc) + ' <span class="cnt">(' + items.length + ' coins &mdash; ' + inPlace + ' in place';
+        html += '<span>' + esc(oc) + ' <span class="cnt">(' + items.length + ' coins: ' + inPlace + ' in place';
         if (moved) html += ', ' + moved + ' moved';
+        if (sold) html += ', ' + sold + ' sold';
         html += ')</span></span>';
         html += '<span class="arrow">&#9660;</span></div>';
 
@@ -531,13 +552,24 @@ function renderAudit() {
 
         for (const a of items) {
             const isInPlace = a.case_number === oc;
-            const cls = isInPlace ? '' : ' moved';
-            const statusCls = isInPlace ? 'status-in-place' : 'status-moved';
-            const statusTxt = isInPlace ? 'In Place' : '\u2192 ' + a.case_number;
+            let cls = '', statusCls = '', statusTxt = '';
+
+            if (a.sold) {
+                cls = ' sold';
+                statusCls = 'status-sold';
+                statusTxt = 'SOLD';
+            } else if (isInPlace) {
+                statusCls = 'status-in-place';
+                statusTxt = 'In Place';
+            } else {
+                cls = ' moved';
+                statusCls = 'status-moved';
+                statusTxt = '\u2192 ' + a.case_number;
+            }
 
             html += '<div class="audit-row' + cls + '">';
             html += '<div class="coin-info">';
-            html += '<div class="coin-desc">' + esc(a.description) + '</div>';
+            html += '<div class="coin-desc">' + esc(a.description) + (a.sold ? '<span class="sold-badge">SOLD</span>' : '') + '</div>';
             html += '<div class="coin-meta">' + esc(a.coin_id) + ' | ' + esc(a.barcode) + ' | $' + fmt(parseFloat(a.price || 0)) + '</div>';
             html += '</div>';
             html += '<span class="' + statusCls + '">' + statusTxt + '</span>';
@@ -582,12 +614,12 @@ function feedback(msg, type) {
 // ACTIONS
 // ============================================================
 function exportCSV() {
-    const rows = [['case_number','origin_case','coin_id','description','barcode','price','status','assigned_at']];
+    const rows = [['case_number','origin_case','coin_id','description','barcode','price','status','sold','assigned_at']];
     const sorted = Object.values(assignments).sort((a, b) =>
         (a.origin_case||'').localeCompare(b.origin_case||'') || a.description.localeCompare(b.description));
     for (const a of sorted) {
-        const status = a.case_number === (a.origin_case || a.case_number) ? 'In Place' : 'Moved';
-        rows.push([a.case_number, a.origin_case || a.case_number, a.coin_id, a.description, a.barcode, a.price, status, a.assigned_at]);
+        const status = a.sold ? 'Sold' : (a.case_number === (a.origin_case || a.case_number) ? 'In Place' : 'Moved');
+        rows.push([a.case_number, a.origin_case || a.case_number, a.coin_id, a.description, a.barcode, a.price, status, a.sold ? 'Yes' : 'No', a.assigned_at]);
     }
     const csv = rows.map(r => r.map(v => '"' + (v||'').replace(/"/g,'""') + '"').join(',')).join('\n');
     dl(csv, 'case-assignments-' + today() + '.csv', 'text/csv');
