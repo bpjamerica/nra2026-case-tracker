@@ -341,14 +341,19 @@ function handleScan() {
     }
 
     const idx = barcodeIndex[barcode];
+    let p;
     if (idx === undefined) {
-        feedback('Barcode not found: ' + barcode, 'error');
-        barcodeEl.value = '';
-        barcodeEl.focus();
-        return;
+        // Not in product list — offer to add with just barcode
+        if (!confirm('Barcode not in product list:\n' + barcode + '\n\nAdd to case ' + caseNum + ' anyway?')) {
+            barcodeEl.value = '';
+            barcodeEl.focus();
+            return;
+        }
+        p = { p: null, d: 'Unknown (' + barcode + ')', c: '', b: barcode, t: '', '$': '0' };
+    } else {
+        p = PRODUCTS[idx];
     }
 
-    const p = PRODUCTS[idx];
     const existing = assignments[barcode];
 
     if (existing && existing.case_number === caseNum) {
