@@ -476,7 +476,7 @@ function renderProducts() {
         html += '</div>' + tag + '</div>';
     }
     if (!html) html = '<div class="empty">No products match</div>';
-    if (filtered.length > 200) html += '<div class="empty">Showing 200 of ' + filtered.length + '</div>';
+    if (search && filtered.length > 0) html = '<div class="empty">' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '') + (filtered.length > 200 ? ' (showing first 200)' : '') + '</div>' + html;
     list.innerHTML = html;
 }
 
