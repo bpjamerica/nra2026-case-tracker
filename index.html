@@ -349,7 +349,10 @@ function handleScan() {
             barcodeEl.focus();
             return;
         }
-        p = { p: null, d: 'Unknown (' + barcode + ')', c: '', b: barcode, t: '', '$': '0' };
+        const priceInput = prompt('Enter price for this item:', '0');
+        if (priceInput === null) { barcodeEl.value = ''; barcodeEl.focus(); return; }
+        const unknownPrice = priceInput.replace(/[$,]/g, '') || '0';
+        p = { p: null, d: 'Unknown (' + barcode + ')', c: '', b: barcode, t: '', '$': unknownPrice };
     } else {
         p = PRODUCTS[idx];
     }
