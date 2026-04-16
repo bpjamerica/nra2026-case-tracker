@@ -344,15 +344,10 @@ function handleScan() {
     let p;
     if (idx === undefined) {
         // Not in product list — offer to add with just barcode
-        if (!confirm('Barcode not in product list:\n' + barcode + '\n\nAdd to case ' + caseNum + ' anyway?')) {
-            barcodeEl.value = '';
-            barcodeEl.focus();
-            return;
-        }
-        const priceInput = prompt('Enter price for this item:', '0');
-        if (priceInput === null) { barcodeEl.value = ''; barcodeEl.focus(); return; }
-        const unknownPrice = priceInput.replace(/[$,]/g, '') || '0';
-        p = { p: null, d: 'Unknown (' + barcode + ')', c: '', b: barcode, t: '', '$': unknownPrice };
+        feedback('Barcode not in product list: ' + barcode, 'error', true, caseNum, barcode);
+        barcodeEl.value = '';
+        barcodeEl.focus();
+        return;
     } else {
         p = PRODUCTS[idx];
     }
@@ -612,10 +607,39 @@ function setSync(s) {
     else { dot.className = 'dot off'; txt.textContent = 'Offline'; document.getElementById('statusText').textContent = 'Disconnected'; }
 }
 
-function feedback(msg, type) {
+function feedback(msg, type, showAdd, caseNum, barcode) {
     const el = document.getElementById('feedback');
-    el.textContent = msg;
     el.className = 'feedback ' + type;
+    if (showAdd) {
+        el.innerHTML = esc(msg) + ' <button onclick="addUnknown(\'' + esc(caseNum) + '\',\'' + esc(barcode) + '\')" style="margin-left:10px;padding:4px 12px;border-radius:4px;border:none;background:#2196F3;color:#fff;font-weight:bold;cursor:pointer">Add to Case</button>';
+    } else {
+        el.textContent = msg;
+    }
+}
+
+function addUnknown(caseNum, barcode) {
+    const desc = prompt('Description for this item:', '');
+    if (desc === null) return;
+    const priceInput = prompt('Price:', '0');
+    if (priceInput === null) return;
+    const price = priceInput.replace(/[$,]/g, '') || '0';
+
+    const existing = assignments[barcode];
+    const a = {
+        case_number: caseNum,
+        origin_case: existing ? existing.origin_case : caseNum,
+        product_id: null,
+        description: desc || 'Unknown (' + barcode + ')',
+        coin_id: '',
+        barcode: barcode,
+        price: price,
+        assigned_at: existing ? existing.assigned_at : new Date().toISOString()
+    };
+    assignments[barcode] = a;
+    addCase(caseNum);
+    render();
+    upsertAssignment(a);
+    feedback(caseNum + ': ' + a.description + ' — $' + fmt(parseFloat(price)), 'success');
 }
 
 // ============================================================
