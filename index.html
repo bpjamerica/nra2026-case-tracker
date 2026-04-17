@@ -475,7 +475,7 @@ function renderProducts() {
         const tag = a ? '<span class="case-tag">' + esc(a.case_number) + '</span>' : '';
         html += '<div class="product-row"><div class="coin-info">';
         html += '<div class="coin-desc">' + esc(p.d) + '</div>';
-        html += '<div class="coin-meta">' + esc(p.c) + ' | ' + esc(p.b) + ' | $' + fmt(parseFloat(p['$'] || 0)) + '</div>';
+        html += '<div class="coin-meta">' + esc(p.c) + ' | ' + esc(p.b) + ' | $' + fmt(parseFloat(p['$'] || 0)) + (p.t ? ' | ' + esc(p.t) : '') + '</div>';
         html += '</div>' + tag + '</div>';
     }
     if (!html) html = '<div class="empty">No products match</div>';
