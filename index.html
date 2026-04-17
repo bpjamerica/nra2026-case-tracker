@@ -466,7 +466,7 @@ function renderProducts() {
     const search = document.getElementById('productSearch').value.toLowerCase();
     const list = document.getElementById('productList');
     const filtered = search
-        ? PRODUCTS.filter(p => p.d.toLowerCase().includes(search) || p.b.includes(search) || p.c.toLowerCase().includes(search))
+        ? PRODUCTS.filter(p => p.d.toLowerCase().includes(search) || p.b.includes(search) || p.c.toLowerCase().includes(search) || (p.t && p.t.toLowerCase().includes(search)))
         : PRODUCTS.slice(0, 100);
     const showing = filtered.slice(0, 200);
     let html = '';
