@@ -99,6 +99,17 @@
             .input-group.case-grp { flex: 1; }
             .coin-row { padding-left: 16px; }
         }
+        @media print {
+            body { padding: 0; max-width: 100%; }
+            .status-bar, .input-section, .tabs, .bottom-bar, .feedback, .search-box, .arrow, .btn { display: none !important; }
+            h1 { font-size: 1.1em; margin-bottom: 8px; }
+            .case-group { page-break-after: always; break-after: page; }
+            .case-group:last-child { page-break-after: avoid; break-after: avoid; }
+            .case-items { display: block !important; }
+            .case-header { cursor: default; }
+            .audit-row, .coin-row { padding: 4px 8px; font-size: 0.85em; }
+            .case-group, .panel { box-shadow: none; }
+        }
     </style>
 </head>
 <body>
@@ -144,6 +155,7 @@
 
     <div class="bottom-bar">
         <button class="btn primary" onclick="exportCSV()">Export CSV</button>
+        <button class="btn primary" onclick="printAudit()">Print Cases</button>
         <button class="btn danger" onclick="clearAll()">Clear All</button>
     </div>
 
@@ -645,6 +657,14 @@ function addUnknown(caseNum, barcode) {
 // ============================================================
 // ACTIONS
 // ============================================================
+function printAudit() {
+    showTab('audit');
+    // Expand all case groups for printing
+    document.querySelectorAll('.case-items.hidden').forEach(el => el.classList.remove('hidden'));
+    document.querySelectorAll('.arrow.collapsed').forEach(el => el.classList.remove('collapsed'));
+    setTimeout(() => window.print(), 300);
+}
+
 function exportCSV() {
     const rows = [['case_number','origin_case','coin_id','description','barcode','price','status','sold','assigned_at']];
     const sorted = Object.values(assignments).sort((a, b) =>
