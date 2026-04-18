@@ -44,6 +44,7 @@
         .case-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; background: #f7fafc; font-weight: 600; font-size: 0.95em; user-select: none; }
         .case-header:hover { background: #edf2f7; }
         .case-header .cnt { color: #2c5282; font-size: 0.85em; font-weight: 400; }
+        .print-case-btn { padding: 2px 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 0.8em; cursor: pointer; margin-right: 8px; }
         .arrow { transition: transform 0.2s; display: inline-block; }
         .arrow.collapsed { transform: rotate(-90deg); }
         .case-items.hidden { display: none; }
@@ -101,7 +102,7 @@
         }
         @media print {
             body { padding: 0; max-width: 100%; }
-            .status-bar, .input-section, .tabs, .bottom-bar, .feedback, .search-box, .arrow, .btn { display: none !important; }
+            .status-bar, .input-section, .tabs, .bottom-bar, .feedback, .search-box, .arrow, .btn, .print-case-btn { display: none !important; }
             h1 { font-size: 1.1em; margin-bottom: 8px; }
             .case-group { page-break-after: always; break-after: page; }
             .case-group:last-child { page-break-after: avoid; break-after: avoid; }
@@ -560,6 +561,7 @@ function renderAudit() {
         if (moved) html += ', ' + moved + ' moved';
         if (sold) html += ', ' + sold + ' sold';
         html += ')</span></span>';
+        html += '<button class="print-case-btn" onclick="event.stopPropagation();printSingleCase(\'' + esc(oc) + '\')">Print</button>';
         html += '<span class="arrow">&#9660;</span></div>';
 
         html += '<div class="case-items">';
@@ -657,6 +659,29 @@ function addUnknown(caseNum, barcode) {
 // ============================================================
 // ACTIONS
 // ============================================================
+function printSingleCase(caseName) {
+    showTab('audit');
+    // Hide all case groups, show only the selected one
+    document.querySelectorAll('.case-group').forEach(el => {
+        const header = el.querySelector('.case-header span');
+        if (header && header.textContent.startsWith(caseName)) {
+            el.style.display = '';
+            el.querySelector('.case-items').classList.remove('hidden');
+            const arrow = el.querySelector('.arrow');
+            if (arrow) arrow.classList.remove('collapsed');
+        } else {
+            el.style.display = 'none';
+        }
+    });
+    document.querySelector('.audit-summary').style.display = 'none';
+    setTimeout(() => {
+        window.print();
+        // Restore all
+        document.querySelectorAll('.case-group').forEach(el => el.style.display = '');
+        document.querySelector('.audit-summary').style.display = '';
+    }, 300);
+}
+
 function printAudit() {
     showTab('audit');
     // Expand all case groups for printing
