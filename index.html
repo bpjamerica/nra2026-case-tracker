@@ -227,7 +227,7 @@ async function loadFromSupabase() {
                 product_id: row.product_id, description: row.description,
                 coin_id: row.coin_id, barcode: row.barcode,
                 price: row.price, assigned_at: row.assigned_at,
-                sold: row.sold || false, sold_at: row.sold_at
+                sold: row.sold || false, sold_at: row.sold_at, order_number: row.order_number || ''
             };
             addCaseSilent(row.case_number);
             addCaseSilent(row.origin_case || row.case_number);
@@ -309,7 +309,7 @@ function subscribeRealtime() {
                 case_number: row.case_number, origin_case: row.origin_case || row.case_number,
                 product_id: row.product_id, description: row.description, coin_id: row.coin_id,
                 barcode: row.barcode, price: row.price, assigned_at: row.assigned_at,
-                sold: row.sold || false, sold_at: row.sold_at
+                sold: row.sold || false, sold_at: row.sold_at, order_number: row.order_number || ''
             };
             addCaseSilent(row.case_number);
             render();
@@ -320,7 +320,7 @@ function subscribeRealtime() {
                 case_number: row.case_number, origin_case: row.origin_case || row.case_number,
                 product_id: row.product_id, description: row.description, coin_id: row.coin_id,
                 barcode: row.barcode, price: row.price, assigned_at: row.assigned_at,
-                sold: row.sold || false, sold_at: row.sold_at
+                sold: row.sold || false, sold_at: row.sold_at, order_number: row.order_number || ''
             };
             addCaseSilent(row.case_number);
             render();
@@ -466,7 +466,7 @@ function renderCases() {
         html += '<span class="arrow">&#9660;</span></div><div class="case-items">';
         for (const item of items) {
             html += '<div class="coin-row"><div class="coin-info">';
-            html += '<div class="coin-desc">' + esc(item.description) + (item.sold ? '<span class="sold-badge">SOLD</span>' : '') + '</div>';
+            html += '<div class="coin-desc">' + esc(item.description) + (item.sold ? '<span class="sold-badge">SOLD' + (item.order_number ? ' #' + esc(item.order_number) : '') + '</span>' : '') + '</div>';
             html += '<div class="coin-meta">' + esc(item.coin_id) + ' | ' + esc(item.barcode) + ' | $' + fmt(parseFloat(item.price || 0)) + '</div>';
             html += '</div><button class="coin-remove" onclick="removeCoin(\'' + escA(item.barcode) + '\')">Remove</button></div>';
         }
@@ -586,7 +586,7 @@ function renderAudit() {
 
             html += '<div class="audit-row' + cls + '">';
             html += '<div class="coin-info">';
-            html += '<div class="coin-desc">' + esc(a.description) + (a.sold ? '<span class="sold-badge">SOLD</span>' : '') + '</div>';
+            html += '<div class="coin-desc">' + esc(a.description) + (a.sold ? '<span class="sold-badge">SOLD' + (a.order_number ? ' #' + esc(a.order_number) : '') + '</span>' : '') + '</div>';
             html += '<div class="coin-meta">' + esc(a.coin_id) + ' | ' + esc(a.barcode) + ' | $' + fmt(parseFloat(a.price || 0)) + '</div>';
             html += '</div>';
             html += '<span class="' + statusCls + '">' + statusTxt + '</span>';
