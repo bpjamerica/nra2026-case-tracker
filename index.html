@@ -152,7 +152,12 @@
         <div class="product-list" id="productList"></div>
     </div>
     <div class="panel" id="summaryPanel" style="display:none"></div>
-    <div class="panel" id="auditPanel" style="display:none"></div>
+    <div class="panel" id="auditPanel" style="display:none">
+        <div class="search-box">
+            <input type="text" id="auditSearch" placeholder="Search by description, barcode, coin ID, or case...">
+        </div>
+        <div id="auditContent"></div>
+    </div>
 
     <div class="bottom-bar">
         <button class="btn primary" onclick="exportCSV()">Export CSV</button>
@@ -199,6 +204,7 @@ async function init() {
     document.getElementById('caseInput').addEventListener('change', normalizeCase);
     document.getElementById('caseInput').addEventListener('blur', normalizeCase);
     document.getElementById('productSearch').addEventListener('input', renderProducts);
+    document.getElementById('auditSearch').addEventListener('input', renderAudit);
 
     // Load from Supabase
     await loadFromSupabase();
@@ -517,9 +523,17 @@ function renderSummary() {
 }
 
 function renderAudit() {
-    const panel = document.getElementById('auditPanel');
-    const all = Object.values(assignments);
-    if (!all.length) { panel.innerHTML = '<div class="empty">No assignments yet</div>'; return; }
+    const panel = document.getElementById('auditContent');
+    const search = (document.getElementById('auditSearch').value || '').toLowerCase();
+    const all = Object.values(assignments).filter(a => {
+        if (!search) return true;
+        return (a.description || '').toLowerCase().includes(search) ||
+               (a.barcode || '').includes(search) ||
+               (a.coin_id || '').toLowerCase().includes(search) ||
+               (a.case_number || '').toLowerCase().includes(search) ||
+               (a.origin_case || '').toLowerCase().includes(search);
+    });
+    if (!all.length) { panel.innerHTML = '<div class="empty">' + (search ? 'No matches' : 'No assignments yet') + '</div>'; return; }
 
     // Group by origin_case
     const byOrigin = {};
