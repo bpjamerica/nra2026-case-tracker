@@ -599,6 +599,7 @@ function renderAudit() {
         html += '<span><b>Total:</b> ' + items.length + ' coins &mdash; $' + fmt(total) + '</span>';
         html += '<span><b>Sold:</b> ' + sold + ' &mdash; $' + fmt(soldValue) + '</span>';
         html += '<span><b>Remaining:</b> ' + (items.length - sold) + ' &mdash; $' + fmt(leftValue) + '</span>';
+        html += '<span><b>Cost:</b> $' + fmt(leftValue / 1.7761711) + '</span>';
         html += '</div>';
         html += '</div></div>';
     }
